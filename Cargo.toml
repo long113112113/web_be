@@ -1,6 +1,19 @@
 [package]
-name = "Web_BE"
+name = "web_be"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+axum = "0.8.8"
+tokio = { version = "1.49.0", features = ["full"] }
+sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "postgres", "macros", "chrono", "uuid"] }
+serde = { version = "1.0.228", features = ["derive"] }
+jsonwebtoken = { version = "10.2.0", features = ["use_pem", "aws_lc_rs"] }
+tracing = "0.1.44"
+chrono = { version = "0.4", features = ["serde"] }
+argon2 = "0.5.3"    
+rand_core = { version = "0.9.3", features = ["std"] }
+dotenvy = "0.15.7"
+tracing-subscriber = "0.3.22"
+validator = "0.18"
+uuid = { version = "1.11", features = ["v4", "serde"] }

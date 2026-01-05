@@ -11,3 +11,5 @@ Services: Nơi chứa logic xử lí chính.
 Repository: Nơi viết các câu lệnh SQL (SELECT, INSERT).
 
 Models: Các bản thiết kế. dùng struct để định nghĩa
+
+Không code nguy hiểm, dễ bị panic
