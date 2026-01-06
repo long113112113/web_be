@@ -1,8 +1,8 @@
 use crate::{
     config::Config,
-    dtos::{
-        private::auth::request::{LoginRequest, RegisterRequest},
-        private::auth::response::{LoginResponse, RegisterResponse},
+    dtos::private::auth::{
+        request::{LoginRequest, RefreshTokenRequest, RegisterRequest},
+        response::{LoginResponse, RegisterResponse},
     },
     services::auth::auth_service,
 };
@@ -13,10 +13,17 @@ pub async fn register_handler(
     State(pool): State<PgPool>,
     Json(payload): Json<RegisterRequest>,
 ) -> impl IntoResponse {
-    match auth_service::register_user(&pool, &payload.email, &payload.password).await {
-        Ok(user) => (
+    let config = Config::init();
+    match auth_service::register_user(&pool, &payload.email, &payload.password, &config.jwt_secret)
+        .await
+    {
+        Ok((token, refresh_token, user)) => (
             StatusCode::CREATED,
-            Json(RegisterResponse { email: user.email }),
+            Json(RegisterResponse {
+                token,
+                refresh_token,
+                user,
+            }),
         )
             .into_response(),
         Err(e) => e.into_response(),
@@ -33,7 +40,37 @@ pub async fn login_handler(
     match auth_service::login_user(&pool, &payload.email, &payload.password, &config.jwt_secret)
         .await
     {
-        Ok((token, user)) => (StatusCode::OK, Json(LoginResponse { token, user })).into_response(),
+        Ok((token, refresh_token, user)) => (
+            StatusCode::OK,
+            Json(LoginResponse {
+                token,
+                refresh_token,
+                user,
+            }),
+        )
+            .into_response(),
+        Err(e) => e.into_response(),
+    }
+}
+
+pub async fn refresh_token_handler(
+    State(pool): State<PgPool>,
+    Json(payload): Json<RefreshTokenRequest>,
+) -> impl IntoResponse {
+    let config = Config::init();
+
+    match auth_service::refresh_access_token(&pool, &payload.refresh_token, &config.jwt_secret)
+        .await
+    {
+        Ok((token, refresh_token, user)) => (
+            StatusCode::OK,
+            Json(LoginResponse {
+                token,
+                refresh_token,
+                user,
+            }),
+        )
+            .into_response(),
         Err(e) => e.into_response(),
     }
 }

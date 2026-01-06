@@ -1,6 +1,7 @@
 mod handlers;
 
 pub mod config;
+pub mod constant;
 pub mod dtos;
 pub mod error;
 pub mod models;

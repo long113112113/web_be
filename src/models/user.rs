@@ -8,8 +8,12 @@ pub struct UserModel {
     pub email: String,
     #[serde(skip_serializing)]
     pub password_hash: String,
+    #[serde(skip_serializing)]
     pub role: String,
+    #[serde(skip_serializing)]
     pub is_active: bool,
+    #[serde(skip_serializing)]
     pub created_at: DateTime<Utc>,
+    #[serde(skip_serializing)]
     pub updated_at: DateTime<Utc>,
 }
