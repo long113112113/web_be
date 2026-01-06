@@ -13,7 +13,7 @@ pub struct Claims {
 pub fn create_jwt(user_id: &str, secret: &str) -> Result<String, AuthError> {
     let expiration = Utc::now()
         .checked_add_signed(Duration::hours(1))
-        .expect("valid timestamp")
+        .ok_or_else(|| AuthError::TokenCreationError("Invalid timestamp calculation".to_string()))?
         .timestamp();
 
     let claims = Claims {
@@ -35,7 +35,7 @@ pub fn create_refresh_token(user_id: &str, secret: &str) -> Result<String, AuthE
         .checked_add_signed(Duration::days(
             crate::constant::auth::REFRESH_TOKEN_DURATION_DAYS,
         ))
-        .expect("valid timestamp")
+        .ok_or_else(|| AuthError::TokenCreationError("Invalid timestamp calculation".to_string()))?
         .timestamp();
 
     let claims = Claims {
