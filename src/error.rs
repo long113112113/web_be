@@ -9,6 +9,8 @@ pub enum AuthError {
     EmailAlreadyExists,
     DatabaseError(String),
     HashingError(String),
+    InvalidCredentials,
+    TokenCreationError(String),
 }
 
 impl fmt::Display for AuthError {
@@ -19,6 +21,8 @@ impl fmt::Display for AuthError {
             AuthError::EmailAlreadyExists => write!(f, "Email already exists"),
             AuthError::DatabaseError(msg) => write!(f, "Database error: {}", msg),
             AuthError::HashingError(msg) => write!(f, "Hashing error: {}", msg),
+            AuthError::InvalidCredentials => write!(f, "Invalid credentials"),
+            AuthError::TokenCreationError(msg) => write!(f, "Token creation error: {}", msg),
         }
     }
 }
@@ -38,7 +42,12 @@ impl IntoResponse for AuthError {
             AuthError::InvalidEmail => (StatusCode::BAD_REQUEST, "Invalid email format"),
             AuthError::WeakPassword(ref msg) => (StatusCode::BAD_REQUEST, msg.as_str()),
             AuthError::EmailAlreadyExists => (StatusCode::CONFLICT, "Email already exists"),
-            AuthError::DatabaseError(_) | AuthError::HashingError(_) => {
+            AuthError::InvalidCredentials => {
+                (StatusCode::UNAUTHORIZED, "Invalid email or password")
+            }
+            AuthError::DatabaseError(_)
+            | AuthError::HashingError(_)
+            | AuthError::TokenCreationError(_) => {
                 (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error")
             }
         };

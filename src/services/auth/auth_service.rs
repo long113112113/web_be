@@ -1,7 +1,9 @@
-use crate::{error::AuthError, models::user::UserModel, repository::user_repository};
+use crate::{
+    error::AuthError, models::user::UserModel, repository::user_repository, utils::jwt::create_jwt,
+};
 use argon2::{
     Argon2,
-    password_hash::{PasswordHasher, SaltString, rand_core::OsRng},
+    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString, rand_core::OsRng},
 };
 use sqlx::PgPool;
 use validator::ValidateEmail;
@@ -73,4 +75,34 @@ pub async fn register_user(
         })?;
 
     Ok(result)
+}
+
+fn verify_password(password: &str, password_hash: &str) -> Result<(), AuthError> {
+    let parsed_hash =
+        PasswordHash::new(password_hash).map_err(|e| AuthError::HashingError(e.to_string()))?;
+
+    Argon2::default()
+        .verify_password(password.as_bytes(), &parsed_hash)
+        .map_err(|_| AuthError::InvalidCredentials)
+}
+
+pub async fn login_user(
+    pool: &PgPool,
+    email: &str,
+    password: &str,
+    jwt_secret: &str,
+) -> Result<(String, UserModel), AuthError> {
+    // Check if user exists
+    let user = user_repository::find_user_by_email(pool, email)
+        .await
+        .map_err(|e| AuthError::DatabaseError(e.to_string()))?
+        .ok_or(AuthError::InvalidCredentials)?;
+
+    // Verify password
+    verify_password(password, &user.password_hash)?;
+
+    // Create JWT
+    let token = create_jwt(&user.id.to_string(), jwt_secret)?;
+
+    Ok((token, user))
 }

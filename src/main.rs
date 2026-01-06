@@ -1,5 +1,6 @@
-use axum::Router;
+use axum::{Router, http::Method};
 use sqlx::postgres::PgPoolOptions;
+use tower_http::cors::{Any, CorsLayer};
 use web_be::{config::Config, routes::auth_routes};
 
 #[tokio::main]
@@ -17,12 +18,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Migrations executed successfully!");
 
+    // Setup CORS
+    let cors = CorsLayer::new()
+        .allow_origin(
+            config
+                .cors_origins
+                .iter()
+                .map(|s| s.parse().expect("Invalid header value"))
+                .collect::<Vec<_>>(),
+        )
+        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
+        .allow_headers(Any);
+
     // Setup Axum router
-    let app = Router::new().nest("/api/auth", auth_routes(pool));
+    let app = Router::new()
+        .nest("/api/auth", auth_routes(pool))
+        .layer(cors);
 
     // Start server
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
-    println!("🚀 Server running on http://localhost:3000");
+    println!("Server running on http://localhost:3000");
     axum::serve(listener, app).await?;
 
     Ok(())
