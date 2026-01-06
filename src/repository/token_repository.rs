@@ -53,3 +53,15 @@ pub async fn set_token_used(pool: &PgPool, token_hash: &str) -> Result<(), sqlx:
     .await?;
     Ok(())
 }
+pub async fn delete_expired_tokens(pool: &PgPool) -> Result<u64, sqlx::Error> {
+    let result = sqlx::query!(
+        r#"
+        DELETE FROM refresh_tokens
+        WHERE expires_at < NOW()
+        "#
+    )
+    .execute(pool)
+    .await?;
+
+    Ok(result.rows_affected())
+}

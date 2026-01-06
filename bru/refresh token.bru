@@ -1,0 +1,22 @@
+meta {
+  name: refresh token
+  type: http
+  seq: 3
+}
+
+post {
+  url: http://localhost:3000/api/auth/refresh-token
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "refresh_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJkOTFmZThjYy01ODhiLTRlODEtYjQ1MC02ZTU2ZGYyMDZhNDQiLCJpYXQiOjE3Njc3MjM5MTcsImV4cCI6MTc2ODMyODcxN30.88E8h2rnqS12z_QDyEmBhDc85lrAuRSXrZuvtvE38XA"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

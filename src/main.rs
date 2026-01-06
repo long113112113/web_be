@@ -35,6 +35,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nest("/api/auth", auth_routes(pool))
         .layer(cors);
 
+    // Initialize and start scheduler
+    let sched = web_be::services::scheduler::init_scheduler(pool.clone())
+        .await
+        .expect("Failed to initialize scheduler");
+    sched.start().await.expect("Failed to start scheduler");
+
     // Start server
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
     println!("Server running on http://localhost:3000");
