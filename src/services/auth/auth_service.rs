@@ -15,16 +15,63 @@ use sqlx::PgPool;
 use uuid::Uuid;
 use validator::ValidateEmail;
 
+#[cfg(test)]
+mod auth_service_test {
+    use super::*;
+
+    #[test]
+    fn test_strong_password() {
+        assert!(validate_password("Password123!").is_ok());
+    }
+
+    #[test]
+    fn test_weak_password_no_uppercase() {
+        assert!(validate_password("password123!").is_err());
+    }
+
+    #[test]
+    fn test_weak_password_no_lowercase() {
+        assert!(validate_password("PASSWORD123!").is_err());
+    }
+
+    #[test]
+    fn test_weak_password_no_digit() {
+        assert!(validate_password("Password!").is_err());
+    }
+
+    #[test]
+    fn test_weak_password_no_special() {
+        assert!(validate_password("Password123").is_err());
+    }
+
+    #[test]
+    fn test_short_password() {
+        assert!(validate_password("Pass1!").is_err());
+    }
+}
+
 fn is_valid_email(email: &str) -> bool {
     email.validate_email()
 }
-fn validate_password(password: &str) -> Result<(), AuthError> {
+pub fn validate_password(password: &str) -> Result<(), AuthError> {
     if password.len() < MIN_PASSWORD_LENGTH {
         return Err(AuthError::WeakPassword(format!(
             "Password must be at least {} characters",
             MIN_PASSWORD_LENGTH
         )));
     }
+
+    let has_uppercase = password.chars().any(|c| c.is_uppercase());
+    let has_lowercase = password.chars().any(|c| c.is_lowercase());
+    let has_digit = password.chars().any(|c| c.is_numeric());
+    let has_special = password.chars().any(|c| !c.is_alphanumeric());
+
+    if !has_uppercase || !has_lowercase || !has_digit || !has_special {
+        return Err(AuthError::WeakPassword(
+            "Password must contain at least one uppercase letter, one lowercase letter, one digit, and one special character".to_string(),
+        ));
+    }
+
     Ok(())
 }
 

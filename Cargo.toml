@@ -19,3 +19,4 @@ validator = "0.18"
 uuid = { version = "1.11", features = ["v4", "serde"] }
 tower-http = { version = "0.6.8", features = ["cors"] }
 sha2 = "0.10.9"
+tokio-cron-scheduler = "0.15.1"

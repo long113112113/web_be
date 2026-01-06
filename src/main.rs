@@ -32,11 +32,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Setup Axum router
     let app = Router::new()
-        .nest("/api/auth", auth_routes(pool))
+        .nest("/api/auth", auth_routes(pool.clone()))
         .layer(cors);
 
     // Initialize and start scheduler
-    let sched = web_be::services::scheduler::init_scheduler(pool.clone())
+    let sched = web_be::services::scheduler::init_scheduler(pool)
         .await
         .expect("Failed to initialize scheduler");
     sched.start().await.expect("Failed to start scheduler");
