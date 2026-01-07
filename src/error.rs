@@ -30,6 +30,12 @@ impl From<sqlx::Error> for AuthError {
     }
 }
 
+impl From<jsonwebtoken::errors::Error> for AuthError {
+    fn from(err: jsonwebtoken::errors::Error) -> Self {
+        AuthError::TokenCreationError(err.to_string())
+    }
+}
+
 // Error response structure for JSON output
 #[derive(Serialize)]
 struct ErrorResponse {
@@ -71,4 +77,19 @@ impl IntoResponse for AuthError {
 pub enum AppError {
     #[error("Internal error: {0}")]
     InternalError(String),
+    #[error("Bad request: {0}")]
+    BadRequest(String),
+    #[error("Unauthorized: {0}")]
+    Unauthorized(String),
+}
+
+impl IntoResponse for AppError {
+    fn into_response(self) -> axum::response::Response {
+        let (status, message) = match &self {
+            AppError::InternalError(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.clone()),
+            AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
+            AppError::Unauthorized(msg) => (StatusCode::UNAUTHORIZED, msg.clone()),
+        };
+        (status, Json(ErrorResponse { error: message })).into_response()
+    }
 }

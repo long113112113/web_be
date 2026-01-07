@@ -35,11 +35,8 @@ pub async fn register_user(
     password: &str,
     jwt_secret: &str,
 ) -> Result<(String, String, UserModel), AuthError> {
-    // Validation is now handled by DTO validators in the handler layer
-    match user_repository::find_user_by_email(pool, email).await {
-        Ok(Some(_)) => return Err(AuthError::EmailAlreadyExists),
-        Ok(None) => {}
-        Err(e) => return Err(AuthError::from(e)),
+    if user_repository::find_user_by_email(pool, email).await?.is_some() {
+        return Err(AuthError::EmailAlreadyExists);
     }
     let hashed_password = hash_password(password)?;
     let user = user_repository::create_user(pool, email, &hashed_password)
