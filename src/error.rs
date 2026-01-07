@@ -11,6 +11,7 @@ pub enum AuthError {
     HashingError(String),
     InvalidCredentials,
     TokenCreationError(String),
+    InvalidTokenType,
 }
 
 impl fmt::Display for AuthError {
@@ -23,6 +24,7 @@ impl fmt::Display for AuthError {
             AuthError::HashingError(msg) => write!(f, "Hashing error: {}", msg),
             AuthError::InvalidCredentials => write!(f, "Invalid credentials"),
             AuthError::TokenCreationError(msg) => write!(f, "Token creation error: {}", msg),
+            AuthError::InvalidTokenType => write!(f, "Invalid token type"),
         }
     }
 }
@@ -51,6 +53,7 @@ impl IntoResponse for AuthError {
             AuthError::InvalidCredentials => {
                 (StatusCode::UNAUTHORIZED, "Invalid email or password")
             }
+            AuthError::InvalidTokenType => (StatusCode::UNAUTHORIZED, "Invalid token type"),
             AuthError::DatabaseError(_)
             | AuthError::HashingError(_)
             | AuthError::TokenCreationError(_) => {

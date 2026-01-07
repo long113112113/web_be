@@ -13,6 +13,8 @@ pub struct UserModel {
     #[serde(skip_serializing)]
     pub is_active: bool,
     #[serde(skip_serializing)]
+    pub is_deleted: bool,
+    #[serde(skip_serializing)]
     pub created_at: DateTime<Utc>,
     #[serde(skip_serializing)]
     pub updated_at: DateTime<Utc>,

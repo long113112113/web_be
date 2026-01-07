@@ -1,69 +1,104 @@
 use crate::{
     dtos::private::auth::{
-        request::{LoginRequest, RefreshTokenRequest, RegisterRequest},
+        request::{LoginRequest, RegisterRequest},
         response::AuthResponse,
     },
     services::auth::auth_service,
     state::AppState,
+    utils::cookies::{create_auth_cookies, remove_auth_cookies},
 };
 use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
+use axum_extra::extract::cookie::CookieJar;
 
 pub async fn register_handler(
     State(state): State<AppState>,
+    jar: CookieJar,
     Json(payload): Json<RegisterRequest>,
 ) -> impl IntoResponse {
-    match auth_service::register_user(&state.pool, &payload.email, &payload.password, &state.config.jwt_secret)
-        .await
+    match auth_service::register_user(
+        &state.pool,
+        &payload.email,
+        &payload.password,
+        &state.config.jwt_secret,
+    )
+    .await
     {
-        Ok((token, refresh_token, user)) => (
-            StatusCode::CREATED,
-            Json(AuthResponse {
-                token,
-                refresh_token,
-                user,
-            }),
-        )
-            .into_response(),
+        Ok((token, refresh_token, user)) => {
+            let cookies = create_auth_cookies(token, refresh_token);
+            let mut updated_jar = jar;
+            for cookie in cookies {
+                updated_jar = updated_jar.add(cookie);
+            }
+            (
+                StatusCode::CREATED,
+                updated_jar,
+                Json(AuthResponse { user }),
+            )
+                .into_response()
+        }
         Err(e) => e.into_response(),
     }
 }
 
 pub async fn login_handler(
     State(state): State<AppState>,
+    jar: CookieJar,
     Json(payload): Json<LoginRequest>,
 ) -> impl IntoResponse {
-    match auth_service::login_user(&state.pool, &payload.email, &payload.password, &state.config.jwt_secret)
-        .await
+    match auth_service::login_user(
+        &state.pool,
+        &payload.email,
+        &payload.password,
+        &state.config.jwt_secret,
+    )
+    .await
     {
-        Ok((token, refresh_token, user)) => (
-            StatusCode::OK,
-            Json(AuthResponse {
-                token,
-                refresh_token,
-                user,
-            }),
-        )
-            .into_response(),
+        Ok((token, refresh_token, user)) => {
+            let cookies = create_auth_cookies(token, refresh_token);
+            let mut updated_jar = jar;
+            for cookie in cookies {
+                updated_jar = updated_jar.add(cookie);
+            }
+            (StatusCode::OK, updated_jar, Json(AuthResponse { user })).into_response()
+        }
         Err(e) => e.into_response(),
     }
 }
 
 pub async fn refresh_token_handler(
     State(state): State<AppState>,
-    Json(payload): Json<RefreshTokenRequest>,
+    jar: CookieJar,
 ) -> impl IntoResponse {
-    match auth_service::refresh_access_token(&state.pool, &payload.refresh_token, &state.config.jwt_secret)
+    let refresh_token = match jar.get("refresh_token") {
+        Some(cookie) => cookie.value(),
+        None => return (StatusCode::UNAUTHORIZED, "Refresh token not found").into_response(),
+    };
+
+    match auth_service::refresh_access_token(&state.pool, refresh_token, &state.config.jwt_secret)
         .await
     {
-        Ok((token, refresh_token, user)) => (
-            StatusCode::OK,
-            Json(AuthResponse {
-                token,
-                refresh_token,
-                user,
-            }),
-        )
-            .into_response(),
+        Ok((token, refresh_token, user)) => {
+            let cookies = create_auth_cookies(token, refresh_token);
+            let mut updated_jar = jar;
+            for cookie in cookies {
+                updated_jar = updated_jar.add(cookie);
+            }
+            (StatusCode::OK, updated_jar, Json(AuthResponse { user })).into_response()
+        }
         Err(e) => e.into_response(),
     }
+}
+
+pub async fn logout_handler(State(state): State<AppState>, jar: CookieJar) -> impl IntoResponse {
+    // Invalidate refresh token in database if present
+    if let Some(refresh_cookie) = jar.get("refresh_token") {
+        let _ = auth_service::invalidate_refresh_token(&state.pool, refresh_cookie.value()).await;
+    }
+
+    let cookies = remove_auth_cookies();
+    let mut updated_jar = jar;
+    for cookie in cookies {
+        updated_jar = updated_jar.add(cookie);
+    }
+    (StatusCode::OK, updated_jar, "Logged out").into_response()
 }

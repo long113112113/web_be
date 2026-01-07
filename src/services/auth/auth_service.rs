@@ -3,7 +3,7 @@ use crate::{
     error::AuthError,
     models::user::UserModel,
     repository::{token_repository, user_repository},
-    utils::jwt::{create_jwt, create_refresh_token, decode_jwt},
+    utils::jwt::{TokenType, create_jwt, create_refresh_token, decode_jwt_with_type},
 };
 use argon2::{
     Argon2,
@@ -14,7 +14,6 @@ use sha2::{Digest, Sha256};
 use sqlx::PgPool;
 use uuid::Uuid;
 use validator::ValidateEmail;
-
 
 fn is_valid_email(email: &str) -> bool {
     email.validate_email()
@@ -132,8 +131,8 @@ pub async fn refresh_access_token(
     refresh_token: &str,
     jwt_secret: &str,
 ) -> Result<(String, String, UserModel), AuthError> {
-    let claims =
-        decode_jwt(refresh_token, jwt_secret).map_err(|_| AuthError::InvalidCredentials)?;
+    let claims = decode_jwt_with_type(refresh_token, jwt_secret, TokenType::Refresh)
+        .map_err(|_| AuthError::InvalidCredentials)?;
     let user_id = Uuid::parse_str(&claims.sub)
         .map_err(|_| AuthError::TokenCreationError("Invalid user ID".to_string()))?;
 
@@ -166,4 +165,12 @@ pub async fn refresh_access_token(
     token_repository::create_token(pool, user.id, &new_token_hash, expires_at).await?;
 
     Ok((new_access_token, new_refresh_token, user))
+}
+
+/// Invalidate a refresh token by marking it as used in the database.
+/// This should be called during logout to prevent token reuse.
+pub async fn invalidate_refresh_token(pool: &PgPool, refresh_token: &str) -> Result<(), AuthError> {
+    let token_hash = hash_token(refresh_token);
+    token_repository::set_token_used(pool, &token_hash).await?;
+    Ok(())
 }

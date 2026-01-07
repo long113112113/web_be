@@ -2,7 +2,11 @@ use axum::{Router, http::Method};
 use sqlx::postgres::PgPoolOptions;
 use std::sync::Arc;
 use tower_http::cors::{Any, CorsLayer};
-use web_be::{config::Config, routes::auth_routes::auth_routes, state::AppState};
+use web_be::{
+    config::Config,
+    routes::{private_routes, public_routes},
+    state::AppState,
+};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -38,7 +42,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cors = CorsLayer::new()
         .allow_origin(allowed_origins)
         .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
-        .allow_headers(Any);
+        .allow_headers(Any)
+        .allow_credentials(true);
 
     let app_state = AppState {
         pool: pool.clone(),
@@ -47,7 +52,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Setup Axum router
     let app = Router::new()
-        .nest("/api/auth", auth_routes(app_state))
+        .nest("/api", public_routes(app_state.clone()))
+        .nest("/api", private_routes(app_state.clone()))
         .layer(cors);
 
     // Initialize and start scheduler
@@ -55,7 +61,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await
         .map_err(|e| format!("Failed to initialize scheduler: {}", e))?;
 
-    sched.start().await.map_err(|e| format!("Failed to start scheduler: {}", e))?;
+    sched
+        .start()
+        .await
+        .map_err(|e| format!("Failed to start scheduler: {}", e))?;
 
     // Start server
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;

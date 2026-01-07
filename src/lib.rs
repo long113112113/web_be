@@ -3,6 +3,7 @@ pub mod constant;
 pub mod dtos;
 pub mod error;
 pub mod handlers;
+pub mod middlewares;
 pub mod models;
 pub mod repository;
 pub mod routes;
