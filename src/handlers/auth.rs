@@ -2,7 +2,7 @@ use crate::{
     config::Config,
     dtos::private::auth::{
         request::{LoginRequest, RefreshTokenRequest, RegisterRequest},
-        response::{LoginResponse, RegisterResponse},
+        response::AuthResponse,
     },
     services::auth::auth_service,
 };
@@ -19,7 +19,7 @@ pub async fn register_handler(
     {
         Ok((token, refresh_token, user)) => (
             StatusCode::CREATED,
-            Json(RegisterResponse {
+            Json(AuthResponse {
                 token,
                 refresh_token,
                 user,
@@ -42,7 +42,7 @@ pub async fn login_handler(
     {
         Ok((token, refresh_token, user)) => (
             StatusCode::OK,
-            Json(LoginResponse {
+            Json(AuthResponse {
                 token,
                 refresh_token,
                 user,
@@ -64,7 +64,7 @@ pub async fn refresh_token_handler(
     {
         Ok((token, refresh_token, user)) => (
             StatusCode::OK,
-            Json(LoginResponse {
+            Json(AuthResponse {
                 token,
                 refresh_token,
                 user,
