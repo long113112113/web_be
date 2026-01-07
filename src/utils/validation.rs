@@ -14,16 +14,68 @@ pub fn validate_password_strength(password: &str) -> Result<(), ValidationError>
         ));
     }
 
-    let has_uppercase = password.chars().any(|c| c.is_uppercase());
-    let has_lowercase = password.chars().any(|c| c.is_lowercase());
-    let has_digit = password.chars().any(|c| c.is_numeric());
-    let has_special = password.chars().any(|c| !c.is_alphanumeric());
+    let mut has_upper = false;
+    let mut has_lower = false;
+    let mut has_digit = false;
+    let mut has_special = false;
 
-    if !has_uppercase || !has_lowercase || !has_digit || !has_special {
-        return Err(ValidationError::new("weak_password").with_message(
-            "Password must contain at least one uppercase letter, one lowercase letter, one digit, and one special character".into(),
-        ));
+    for c in password.chars() {
+        if c.is_uppercase() { has_upper = true; }
+        if c.is_lowercase() { has_lower = true; }
+        if c.is_numeric() { has_digit = true; }
+        if !c.is_alphanumeric() { has_special = true; }
+
+        if has_upper && has_lower && has_digit && has_special {
+            return Ok(());
+        }
     }
 
-    Ok(())
+    Err(ValidationError::new("weak_password").with_message(
+        "Password must contain at least one uppercase letter, one lowercase letter, one digit, and one special character".into(),
+    ))
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_password_too_short() {
+        let result = validate_password_strength("Short1!");
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code, "password_too_short");
+    }
+
+    #[test]
+    fn test_password_missing_uppercase() {
+        let result = validate_password_strength("weakpassword1!");
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code, "weak_password");
+    }
+
+    #[test]
+    fn test_password_missing_lowercase() {
+        let result = validate_password_strength("WEAKPASSWORD1!");
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code, "weak_password");
+    }
+
+    #[test]
+    fn test_password_missing_digit() {
+        let result = validate_password_strength("WeakPassword!");
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code, "weak_password");
+    }
+
+    #[test]
+    fn test_password_missing_special() {
+        let result = validate_password_strength("WeakPassword1");
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code, "weak_password");
+    }
+
+    #[test]
+    fn test_valid_password() {
+        let result = validate_password_strength("StrongPassword1!");
+        assert!(result.is_ok());
+    }
 }
