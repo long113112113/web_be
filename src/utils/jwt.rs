@@ -39,12 +39,11 @@ pub fn create_jwt(user_id: &str, secret: &str) -> Result<String, AuthError> {
         token_type: TokenType::Access.as_str().to_string(),
     };
 
-    encode(
+    Ok(encode(
         &Header::default(),
         &claims,
         &EncodingKey::from_secret(secret.as_bytes()),
-    )
-    .map_err(|e| AuthError::TokenCreationError(e.to_string()))
+    )?)
 }
 
 pub fn create_refresh_token(user_id: &str, secret: &str) -> Result<String, AuthError> {
@@ -62,21 +61,19 @@ pub fn create_refresh_token(user_id: &str, secret: &str) -> Result<String, AuthE
         token_type: TokenType::Refresh.as_str().to_string(),
     };
 
-    encode(
+    Ok(encode(
         &Header::default(),
         &claims,
         &EncodingKey::from_secret(secret.as_bytes()),
-    )
-    .map_err(|e| AuthError::TokenCreationError(e.to_string()))
+    )?)
 }
 pub fn decode_jwt(token: &str, secret: &str) -> Result<Claims, AuthError> {
-    jsonwebtoken::decode::<Claims>(
+    Ok(jsonwebtoken::decode::<Claims>(
         token,
         &jsonwebtoken::DecodingKey::from_secret(secret.as_bytes()),
         &jsonwebtoken::Validation::default(),
-    )
-    .map(|data| data.claims)
-    .map_err(|e| AuthError::TokenCreationError(e.to_string())) // Reusing TokenCreationError for decoding error for now
+    )?
+    .claims)
 }
 
 pub fn decode_jwt_with_type(

@@ -15,13 +15,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
 
     // Initialize configuration with error handling
-    let config = match Config::init() {
-        Ok(c) => c,
-        Err(e) => {
-            eprintln!("Configuration error: {}", e);
-            std::process::exit(1);
-        }
-    };
+    let config = Config::init()?;
     let config_arc = Arc::new(config);
 
     println!("Connecting to database...");

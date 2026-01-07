@@ -34,9 +34,19 @@ graph TD
 Create a `.env` file in the root directory with the following variables:
 
 ```env
+# Database
 DATABASE_URL=postgres://user:password@localhost:5432/dbname
+
+# Security
 JWT_SECRET=your_super_secret_jwt_key
 CORS_ORIGINS=http://localhost:3000,http://example.com
+
+# Cloudflare R2 (Object Storage)
+R2_ACCOUNT_ID=your_r2_account_id
+R2_ACCESS_KEY_ID=your_r2_access_key
+R2_SECRET_ACCESS_KEY=your_r2_secret_key
+R2_BUCKET_NAME=your_bucket_name
+R2_PUBLIC_URL=https://pub-your-id.r2.dev
 ```
 
 ### Running the Project
