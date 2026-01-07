@@ -93,13 +93,20 @@ pub async fn upload_avatar_handler(
     }
 
     // Strip EXIF/metadata from image for privacy
-    let cleaned_bytes = match strip_metadata(&file_bytes, &content_type) {
-        Ok(bytes) => bytes,
-        Err(e) => {
-            tracing::error!("Failed to strip metadata: {:?}", e);
-            return (StatusCode::BAD_REQUEST, "Failed to process image").into_response();
-        }
-    };
+    // Use spawn_blocking because image processing is CPU-intensive
+    let ct = content_type.clone();
+    let cleaned_bytes =
+        match tokio::task::spawn_blocking(move || strip_metadata(&file_bytes, &ct)).await {
+            Ok(Ok(bytes)) => bytes,
+            Ok(Err(e)) => {
+                tracing::error!("Failed to strip metadata: {:?}", e);
+                return (StatusCode::BAD_REQUEST, "Failed to process image").into_response();
+            }
+            Err(e) => {
+                tracing::error!("Task join error: {:?}", e);
+                return (StatusCode::INTERNAL_SERVER_ERROR, "Internal error").into_response();
+            }
+        };
 
     // Upload to R2
     let avatar_url = match profile_service::upload_avatar(
