@@ -70,3 +70,18 @@ impl IntoResponse for AuthError {
             .into_response()
     }
 }
+
+#[derive(Debug)]
+pub enum AppError {
+    InternalError(String),
+}
+
+impl fmt::Display for AppError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            AppError::InternalError(msg) => write!(f, "Internal error: {}", msg),
+        }
+    }
+}
+
+impl std::error::Error for AppError {}

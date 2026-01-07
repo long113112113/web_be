@@ -1,7 +1,11 @@
 use crate::constant::auth::REFRESH_TOKEN_DURATION_DAYS;
 use axum_extra::extract::cookie::{Cookie, SameSite};
 
-pub fn create_auth_cookies(access_token: String, refresh_token: String) -> Vec<Cookie<'static>> {
+pub fn create_auth_cookies(
+    access_token: String,
+    refresh_token: String,
+    remember_me: bool,
+) -> Vec<Cookie<'static>> {
     let mut cookies = Vec::new();
 
     // Access Token Cookie
@@ -15,14 +19,20 @@ pub fn create_auth_cookies(access_token: String, refresh_token: String) -> Vec<C
     cookies.push(access_cookie);
 
     // Refresh Token Cookie
-    // Expires in 7 days
-    let refresh_cookie = Cookie::build(("refresh_token", refresh_token))
+    let mut refresh_cookie_builder = Cookie::build(("refresh_token", refresh_token))
         .http_only(true)
         .secure(true)
         .same_site(SameSite::Strict)
-        .path("/")
-        .max_age(time::Duration::days(REFRESH_TOKEN_DURATION_DAYS))
-        .build();
+        .path("/");
+
+    // Only set Max-Age if remember_me is true
+    // If false, it becomes a session cookie (cleared when browser closes)
+    if remember_me {
+        refresh_cookie_builder =
+            refresh_cookie_builder.max_age(time::Duration::days(REFRESH_TOKEN_DURATION_DAYS));
+    }
+
+    let refresh_cookie = refresh_cookie_builder.build();
     cookies.push(refresh_cookie);
 
     cookies

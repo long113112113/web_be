@@ -24,7 +24,7 @@ pub async fn register_handler(
     .await
     {
         Ok((token, refresh_token, user)) => {
-            let cookies = create_auth_cookies(token, refresh_token);
+            let cookies = create_auth_cookies(token, refresh_token, true);
             let mut updated_jar = jar;
             for cookie in cookies {
                 updated_jar = updated_jar.add(cookie);
@@ -54,7 +54,7 @@ pub async fn login_handler(
     .await
     {
         Ok((token, refresh_token, user)) => {
-            let cookies = create_auth_cookies(token, refresh_token);
+            let cookies = create_auth_cookies(token, refresh_token, payload.remember_me);
             let mut updated_jar = jar;
             for cookie in cookies {
                 updated_jar = updated_jar.add(cookie);
@@ -78,7 +78,7 @@ pub async fn refresh_token_handler(
         .await
     {
         Ok((token, refresh_token, user)) => {
-            let cookies = create_auth_cookies(token, refresh_token);
+            let cookies = create_auth_cookies(token, refresh_token, true);
             let mut updated_jar = jar;
             for cookie in cookies {
                 updated_jar = updated_jar.add(cookie);

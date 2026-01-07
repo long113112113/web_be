@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-axum = "0.8.8"
+axum = { version = "0.8.8", features = ["multipart"] }
 tokio = { version = "1.49.0", features = ["full"] }
 sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "postgres", "macros", "chrono", "uuid"] }
 serde = { version = "1.0.228", features = ["derive"] }
@@ -22,3 +22,5 @@ sha2 = "0.10.9"
 tokio-cron-scheduler = "0.15.1"
 axum-extra = { version = "0.12.5", features = ["cookie"] }
 time = "0.3.44"
+aws-sdk-s3 = "1.119.0"
+aws-config = "1.8.12"

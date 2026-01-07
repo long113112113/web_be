@@ -6,6 +6,7 @@ use web_be::{
     config::Config,
     routes::{private_routes, public_routes},
     state::AppState,
+    utils::s3::get_r2_client,
 };
 
 #[tokio::main]
@@ -51,9 +52,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ])
         .allow_credentials(true);
 
+    // Initialize R2/S3 client
+    let s3_client = get_r2_client(&config_arc.r2).await;
+
     let app_state = AppState {
         pool: pool.clone(),
         config: config_arc.clone(),
+        s3_client,
     };
 
     // Setup Axum router
