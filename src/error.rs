@@ -29,6 +29,12 @@ impl fmt::Display for AuthError {
 
 impl std::error::Error for AuthError {}
 
+impl From<sqlx::Error> for AuthError {
+    fn from(err: sqlx::Error) -> Self {
+        AuthError::DatabaseError(err.to_string())
+    }
+}
+
 // Error response structure for JSON output
 #[derive(Serialize)]
 struct ErrorResponse {

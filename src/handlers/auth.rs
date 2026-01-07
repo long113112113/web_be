@@ -1,20 +1,18 @@
 use crate::{
-    config::Config,
     dtos::private::auth::{
         request::{LoginRequest, RefreshTokenRequest, RegisterRequest},
         response::AuthResponse,
     },
     services::auth::auth_service,
+    state::AppState,
 };
 use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
-use sqlx::PgPool;
 
 pub async fn register_handler(
-    State(pool): State<PgPool>,
+    State(state): State<AppState>,
     Json(payload): Json<RegisterRequest>,
 ) -> impl IntoResponse {
-    let config = Config::init();
-    match auth_service::register_user(&pool, &payload.email, &payload.password, &config.jwt_secret)
+    match auth_service::register_user(&state.pool, &payload.email, &payload.password, &state.config.jwt_secret)
         .await
     {
         Ok((token, refresh_token, user)) => (
@@ -31,13 +29,10 @@ pub async fn register_handler(
 }
 
 pub async fn login_handler(
-    State(pool): State<PgPool>,
+    State(state): State<AppState>,
     Json(payload): Json<LoginRequest>,
 ) -> impl IntoResponse {
-    // In a real production app, cache config in State
-    let config = Config::init();
-
-    match auth_service::login_user(&pool, &payload.email, &payload.password, &config.jwt_secret)
+    match auth_service::login_user(&state.pool, &payload.email, &payload.password, &state.config.jwt_secret)
         .await
     {
         Ok((token, refresh_token, user)) => (
@@ -54,12 +49,10 @@ pub async fn login_handler(
 }
 
 pub async fn refresh_token_handler(
-    State(pool): State<PgPool>,
+    State(state): State<AppState>,
     Json(payload): Json<RefreshTokenRequest>,
 ) -> impl IntoResponse {
-    let config = Config::init();
-
-    match auth_service::refresh_access_token(&pool, &payload.refresh_token, &config.jwt_secret)
+    match auth_service::refresh_access_token(&state.pool, &payload.refresh_token, &state.config.jwt_secret)
         .await
     {
         Ok((token, refresh_token, user)) => (

@@ -15,16 +15,29 @@ use sqlx::PgPool;
 use uuid::Uuid;
 use validator::ValidateEmail;
 
+
 fn is_valid_email(email: &str) -> bool {
     email.validate_email()
 }
-fn validate_password(password: &str) -> Result<(), AuthError> {
+pub fn validate_password(password: &str) -> Result<(), AuthError> {
     if password.len() < MIN_PASSWORD_LENGTH {
         return Err(AuthError::WeakPassword(format!(
             "Password must be at least {} characters",
             MIN_PASSWORD_LENGTH
         )));
     }
+
+    let has_uppercase = password.chars().any(|c| c.is_uppercase());
+    let has_lowercase = password.chars().any(|c| c.is_lowercase());
+    let has_digit = password.chars().any(|c| c.is_numeric());
+    let has_special = password.chars().any(|c| !c.is_alphanumeric());
+
+    if !has_uppercase || !has_lowercase || !has_digit || !has_special {
+        return Err(AuthError::WeakPassword(
+            "Password must contain at least one uppercase letter, one lowercase letter, one digit, and one special character".to_string(),
+        ));
+    }
+
     Ok(())
 }
 
@@ -36,6 +49,13 @@ fn hash_password(password: &str) -> Result<String, AuthError> {
         .map(|hash| hash.to_string())
         .map_err(|e| AuthError::HashingError(e.to_string()))
 }
+
+fn hash_token(token: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(token.as_bytes());
+    format!("{:x}", hasher.finalize())
+}
+
 pub async fn register_user(
     pool: &PgPool,
     email: &str,
@@ -49,7 +69,7 @@ pub async fn register_user(
     match user_repository::find_user_by_email(pool, email).await {
         Ok(Some(_)) => return Err(AuthError::EmailAlreadyExists),
         Ok(None) => {}
-        Err(e) => return Err(AuthError::DatabaseError(e.to_string())),
+        Err(e) => return Err(AuthError::from(e)),
     }
     let hashed_password = hash_password(password)?;
     let user = user_repository::create_user(pool, email, &hashed_password)
@@ -60,25 +80,17 @@ pub async fn register_user(
             {
                 AuthError::EmailAlreadyExists
             } else {
-                AuthError::DatabaseError(e.to_string())
+                AuthError::from(e)
             }
         })?;
 
     let token = create_jwt(&user.id.to_string(), jwt_secret)?;
     let refresh_token = create_refresh_token(&user.id.to_string(), jwt_secret)?;
 
-    // Calculate expiration time for database
     let expires_at = Utc::now() + Duration::days(REFRESH_TOKEN_DURATION_DAYS);
+    let token_hash = hash_token(&refresh_token);
 
-    // Hash the refresh token
-    let mut hasher = Sha256::new();
-    hasher.update(refresh_token.as_bytes());
-    let token_hash = format!("{:x}", hasher.finalize());
-
-    // Save refresh token to database
-    token_repository::create_token(pool, user.id, &token_hash, expires_at)
-        .await
-        .map_err(|e| AuthError::DatabaseError(e.to_string()))?;
+    token_repository::create_token(pool, user.id, &token_hash, expires_at).await?;
 
     Ok((token, refresh_token, user))
 }
@@ -99,8 +111,7 @@ pub async fn login_user(
     jwt_secret: &str,
 ) -> Result<(String, String, UserModel), AuthError> {
     let user = user_repository::find_user_by_email(pool, email)
-        .await
-        .map_err(|e| AuthError::DatabaseError(e.to_string()))?
+        .await?
         .ok_or(AuthError::InvalidCredentials)?;
 
     verify_password(password, &user.password_hash)?;
@@ -108,81 +119,51 @@ pub async fn login_user(
     let token = create_jwt(&user.id.to_string(), jwt_secret)?;
     let refresh_token = create_refresh_token(&user.id.to_string(), jwt_secret)?;
 
-    // Calculate expiration time for database
     let expires_at = Utc::now() + Duration::days(REFRESH_TOKEN_DURATION_DAYS);
+    let token_hash = hash_token(&refresh_token);
 
-    // Hash the refresh token
-    let mut hasher = Sha256::new();
-    hasher.update(refresh_token.as_bytes());
-    let token_hash = format!("{:x}", hasher.finalize());
-
-    // Save refresh token to database
-    token_repository::create_token(pool, user.id, &token_hash, expires_at)
-        .await
-        .map_err(|e| AuthError::DatabaseError(e.to_string()))?;
+    token_repository::create_token(pool, user.id, &token_hash, expires_at).await?;
 
     Ok((token, refresh_token, user))
 }
-// Refresh access token
+
 pub async fn refresh_access_token(
     pool: &PgPool,
     refresh_token: &str,
     jwt_secret: &str,
 ) -> Result<(String, String, UserModel), AuthError> {
-    // Decode and validate token signature/expiration
     let claims =
         decode_jwt(refresh_token, jwt_secret).map_err(|_| AuthError::InvalidCredentials)?;
     let user_id = Uuid::parse_str(&claims.sub)
         .map_err(|_| AuthError::TokenCreationError("Invalid user ID".to_string()))?;
 
-    // Hash the refresh token to look it up
-    let mut hasher = Sha256::new();
-    hasher.update(refresh_token.as_bytes());
-    let token_hash = format!("{:x}", hasher.finalize());
+    let token_hash = hash_token(refresh_token);
 
-    // Find token in DB
     let token_record = token_repository::find_token_by_hash(pool, &token_hash)
-        .await
-        .map_err(|e| AuthError::DatabaseError(e.to_string()))?
+        .await?
         .ok_or(AuthError::InvalidCredentials)?;
 
-    // Check if used or mismatched user
     if token_record.used || token_record.user_id != user_id {
         return Err(AuthError::InvalidCredentials);
     }
 
-    // Check expiration (DB check)
     if token_record.expires_at < Utc::now() {
         return Err(AuthError::InvalidCredentials);
     }
 
-    // Mark old token as used
-    token_repository::set_token_used(pool, &token_hash)
-        .await
-        .map_err(|e| AuthError::DatabaseError(e.to_string()))?;
+    token_repository::set_token_used(pool, &token_hash).await?;
 
-    // Find user
     let user = user_repository::find_user_by_id(pool, user_id)
-        .await
-        .map_err(|e| AuthError::DatabaseError(e.to_string()))?
+        .await?
         .ok_or(AuthError::InvalidCredentials)?;
 
-    // Generate NEW tokens
     let new_access_token = create_jwt(&user.id.to_string(), jwt_secret)?;
     let new_refresh_token = create_refresh_token(&user.id.to_string(), jwt_secret)?;
 
-    // Calculate expiration time for new refresh token
     let expires_at = Utc::now() + Duration::days(REFRESH_TOKEN_DURATION_DAYS);
+    let new_token_hash = hash_token(&new_refresh_token);
 
-    // Hash the new refresh token
-    let mut hasher_new = Sha256::new();
-    hasher_new.update(new_refresh_token.as_bytes());
-    let new_token_hash = format!("{:x}", hasher_new.finalize());
-
-    // Save new refresh token to database
-    token_repository::create_token(pool, user.id, &new_token_hash, expires_at)
-        .await
-        .map_err(|e| AuthError::DatabaseError(e.to_string()))?;
+    token_repository::create_token(pool, user.id, &new_token_hash, expires_at).await?;
 
     Ok((new_access_token, new_refresh_token, user))
 }
