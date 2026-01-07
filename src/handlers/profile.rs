@@ -69,10 +69,21 @@ pub async fn upload_avatar_handler(
         .await
         .map_err(|_| AppError::InternalError("Failed to ensure profile".to_string()))?;
 
-    let cleaned_bytes = strip_metadata(&file_bytes, &content_type).map_err(|e| {
-        tracing::error!("Failed to strip metadata: {:?}", e);
-        AppError::BadRequest("Failed to process image".to_string())
-    })?;
+    // Strip EXIF/metadata from image for privacy
+    // Use spawn_blocking because image processing is CPU-intensive
+    let ct = content_type.clone();
+    let cleaned_bytes =
+        match tokio::task::spawn_blocking(move || strip_metadata(&file_bytes, &ct)).await {
+            Ok(Ok(bytes)) => bytes,
+            Ok(Err(e)) => {
+                tracing::error!("Failed to strip metadata: {:?}", e);
+                return (StatusCode::BAD_REQUEST, "Failed to process image").into_response();
+            }
+            Err(e) => {
+                tracing::error!("Task join error: {:?}", e);
+                return (StatusCode::INTERNAL_SERVER_ERROR, "Internal error").into_response();
+            }
+        };
 
     let avatar_url = profile_service::upload_avatar(
         &state.s3_client,

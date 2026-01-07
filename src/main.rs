@@ -1,6 +1,6 @@
 use axum::{Router, http::Method};
 use sqlx::postgres::PgPoolOptions;
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 use tower_http::cors::CorsLayer;
 use web_be::{
     config::Config,
@@ -20,7 +20,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Connecting to database...");
     let pool = PgPoolOptions::new()
-        .max_connections(5)
+        .max_connections(10)
+        .min_connections(2)
+        .acquire_timeout(Duration::from_secs(3))
+        .idle_timeout(Duration::from_secs(300))
+        .max_lifetime(Duration::from_secs(1800))
         .connect(&config_arc.database_url)
         .await?;
     sqlx::migrate!().run(&pool).await?;
