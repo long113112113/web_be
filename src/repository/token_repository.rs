@@ -57,7 +57,11 @@ pub async fn delete_expired_tokens(pool: &PgPool) -> Result<u64, sqlx::Error> {
     let result = sqlx::query!(
         r#"
         DELETE FROM refresh_tokens
-        WHERE expires_at < NOW()
+        WHERE id IN (
+            SELECT id FROM refresh_tokens
+            WHERE expires_at < NOW()
+            LIMIT 1000
+        )
         "#
     )
     .execute(pool)
