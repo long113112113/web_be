@@ -3,18 +3,42 @@ use crate::{
         request::{LoginRequest, RegisterRequest},
         response::AuthResponse,
     },
+    error::AuthError,
     services::auth::auth_service,
     state::AppState,
     utils::cookies::{create_auth_cookies, remove_auth_cookies},
 };
 use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
 use axum_extra::extract::cookie::CookieJar;
+use validator::Validate;
+
+/// Helper function to format validation errors into a readable message
+fn format_validation_errors(errors: validator::ValidationErrors) -> String {
+    errors
+        .field_errors()
+        .iter()
+        .flat_map(|(field, errors)| {
+            errors.iter().map(move |e| {
+                e.message
+                    .clone()
+                    .map(|m| m.to_string())
+                    .unwrap_or_else(|| format!("Invalid {}", field))
+            })
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
+}
 
 pub async fn register_handler(
     State(state): State<AppState>,
     jar: CookieJar,
     Json(payload): Json<RegisterRequest>,
 ) -> impl IntoResponse {
+    // Validate request using validator derive macros
+    if let Err(errors) = payload.validate() {
+        return AuthError::ValidationError(format_validation_errors(errors)).into_response();
+    }
+
     match auth_service::register_user(
         &state.pool,
         &payload.email.trim(),
@@ -45,6 +69,11 @@ pub async fn login_handler(
     jar: CookieJar,
     Json(payload): Json<LoginRequest>,
 ) -> impl IntoResponse {
+    // Validate request using validator derive macros
+    if let Err(errors) = payload.validate() {
+        return AuthError::ValidationError(format_validation_errors(errors)).into_response();
+    }
+
     match auth_service::login_user(
         &state.pool,
         &payload.email.trim(),

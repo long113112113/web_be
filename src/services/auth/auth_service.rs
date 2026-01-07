@@ -1,4 +1,4 @@
-use crate::constant::auth::{MIN_PASSWORD_LENGTH, REFRESH_TOKEN_DURATION_DAYS};
+use crate::constant::auth::REFRESH_TOKEN_DURATION_DAYS;
 use crate::{
     error::AuthError,
     models::user::UserModel,
@@ -13,32 +13,6 @@ use chrono::{Duration, Utc};
 use sha2::{Digest, Sha256};
 use sqlx::PgPool;
 use uuid::Uuid;
-use validator::ValidateEmail;
-
-fn is_valid_email(email: &str) -> bool {
-    email.validate_email()
-}
-pub fn validate_password(password: &str) -> Result<(), AuthError> {
-    if password.len() < MIN_PASSWORD_LENGTH {
-        return Err(AuthError::WeakPassword(format!(
-            "Password must be at least {} characters",
-            MIN_PASSWORD_LENGTH
-        )));
-    }
-
-    let has_uppercase = password.chars().any(|c| c.is_uppercase());
-    let has_lowercase = password.chars().any(|c| c.is_lowercase());
-    let has_digit = password.chars().any(|c| c.is_numeric());
-    let has_special = password.chars().any(|c| !c.is_alphanumeric());
-
-    if !has_uppercase || !has_lowercase || !has_digit || !has_special {
-        return Err(AuthError::WeakPassword(
-            "Password must contain at least one uppercase letter, one lowercase letter, one digit, and one special character".to_string(),
-        ));
-    }
-
-    Ok(())
-}
 
 fn hash_password(password: &str) -> Result<String, AuthError> {
     let salt = SaltString::generate(&mut OsRng);
@@ -61,10 +35,7 @@ pub async fn register_user(
     password: &str,
     jwt_secret: &str,
 ) -> Result<(String, String, UserModel), AuthError> {
-    if !is_valid_email(email) {
-        return Err(AuthError::InvalidEmail);
-    }
-    validate_password(password)?;
+    // Validation is now handled by DTO validators in the handler layer
     match user_repository::find_user_by_email(pool, email).await {
         Ok(Some(_)) => return Err(AuthError::EmailAlreadyExists),
         Ok(None) => {}

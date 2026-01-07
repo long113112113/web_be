@@ -1,0 +1,15 @@
+meta {
+  name: upload_avatar
+  type: http
+  seq: 4
+}
+
+post {
+  url: http://localhost:3000/api/user/avatar
+  body: none
+  auth: inherit
+}
+
+settings {
+  encodeUrl: true
+}

@@ -8,7 +8,10 @@ use serde::Serialize;
 use uuid::Uuid;
 
 use crate::{
-    repository::profile_repository, services::profile_service, state::AppState, utils::jwt::Claims,
+    repository::profile_repository,
+    services::profile_service,
+    state::AppState,
+    utils::{image::strip_metadata, jwt::Claims},
 };
 
 const MAX_AVATAR_SIZE: usize = 5 * 1024 * 1024; // 5MB
@@ -89,13 +92,22 @@ pub async fn upload_avatar_handler(
             .into_response();
     }
 
+    // Strip EXIF/metadata from image for privacy
+    let cleaned_bytes = match strip_metadata(&file_bytes, &content_type) {
+        Ok(bytes) => bytes,
+        Err(e) => {
+            tracing::error!("Failed to strip metadata: {:?}", e);
+            return (StatusCode::BAD_REQUEST, "Failed to process image").into_response();
+        }
+    };
+
     // Upload to R2
     let avatar_url = match profile_service::upload_avatar(
         &state.s3_client,
         &state.config.r2.bucket_name,
         &state.config.r2.public_url,
         user_id,
-        file_bytes,
+        cleaned_bytes,
         &content_type,
     )
     .await
