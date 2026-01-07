@@ -41,8 +41,8 @@ pub async fn register_handler(
 
     match auth_service::register_user(
         &state.pool,
-        &payload.email.trim(),
-        &payload.password.trim(),
+        payload.email.trim(),
+        payload.password.trim(),
         &state.config.jwt_secret,
     )
     .await
@@ -76,8 +76,8 @@ pub async fn login_handler(
 
     match auth_service::login_user(
         &state.pool,
-        &payload.email.trim(),
-        &payload.password.trim(),
+        payload.email.trim(),
+        payload.password.trim(),
         &state.config.jwt_secret,
     )
     .await

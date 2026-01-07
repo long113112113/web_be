@@ -50,8 +50,9 @@ pub async fn upload_avatar_handler(
 
     let file_bytes =
         file_bytes.ok_or(AppError::BadRequest("No avatar file provided".to_string()))?;
-    let content_type = content_type
-        .ok_or(AppError::BadRequest("Content type not specified".to_string()))?;
+    let content_type = content_type.ok_or(AppError::BadRequest(
+        "Content type not specified".to_string(),
+    ))?;
 
     if !ALLOWED_CONTENT_TYPES.contains(&content_type.as_str()) {
         return Err(AppError::BadRequest(
@@ -77,11 +78,11 @@ pub async fn upload_avatar_handler(
             Ok(Ok(bytes)) => bytes,
             Ok(Err(e)) => {
                 tracing::error!("Failed to strip metadata: {:?}", e);
-                return (StatusCode::BAD_REQUEST, "Failed to process image").into_response();
+                return Err(AppError::BadRequest("Failed to process image".to_string()));
             }
             Err(e) => {
                 tracing::error!("Task join error: {:?}", e);
-                return (StatusCode::INTERNAL_SERVER_ERROR, "Internal error").into_response();
+                return Err(AppError::InternalError("Internal error".to_string()));
             }
         };
 

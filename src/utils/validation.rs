@@ -20,10 +20,18 @@ pub fn validate_password_strength(password: &str) -> Result<(), ValidationError>
     let mut has_special = false;
 
     for c in password.chars() {
-        if c.is_uppercase() { has_upper = true; }
-        if c.is_lowercase() { has_lower = true; }
-        if c.is_numeric() { has_digit = true; }
-        if !c.is_alphanumeric() { has_special = true; }
+        if c.is_uppercase() {
+            has_upper = true;
+        }
+        if c.is_lowercase() {
+            has_lower = true;
+        }
+        if c.is_numeric() {
+            has_digit = true;
+        }
+        if !c.is_alphanumeric() {
+            has_special = true;
+        }
 
         if has_upper && has_lower && has_digit && has_special {
             return Ok(());
@@ -77,46 +85,5 @@ mod tests {
     fn test_valid_password() {
         let result = validate_password_strength("StrongPassword1!");
         assert!(result.is_ok());
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_validate_password_strength_success() {
-        assert!(validate_password_strength("StrongP@ss1").is_ok());
-        assert!(validate_password_strength("AnotherStro0ng!").is_ok());
-    }
-
-    #[test]
-    fn test_validate_password_strength_too_short() {
-        let result = validate_password_strength("Short1!");
-        assert!(result.is_err());
-        assert_eq!(result.unwrap_err().code, "password_too_short");
-    }
-
-    #[test]
-    fn test_validate_password_strength_complexity() {
-        // Missing uppercase
-        let res = validate_password_strength("weakp@ss1");
-        assert!(res.is_err());
-        assert_eq!(res.unwrap_err().code, "weak_password");
-
-        // Missing lowercase
-        let res = validate_password_strength("WEAKP@SS1");
-        assert!(res.is_err());
-        assert_eq!(res.unwrap_err().code, "weak_password");
-
-        // Missing digit
-        let res = validate_password_strength("WeakP@ssword");
-        assert!(res.is_err());
-        assert_eq!(res.unwrap_err().code, "weak_password");
-
-        // Missing special char
-        let res = validate_password_strength("WeakPass123");
-        assert!(res.is_err());
-        assert_eq!(res.unwrap_err().code, "weak_password");
     }
 }
