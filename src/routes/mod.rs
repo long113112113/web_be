@@ -1,3 +1,1 @@
-mod auth;
-
-pub use auth::auth_routes;
+pub mod auth_routes;
