@@ -4,6 +4,7 @@ use std::fmt;
 #[derive(Debug)]
 pub enum ConfigError {
     EnvVarMissing(String),
+    InvalidConfig(String),
 }
 
 impl fmt::Display for ConfigError {
@@ -11,6 +12,9 @@ impl fmt::Display for ConfigError {
         match self {
             ConfigError::EnvVarMissing(var) => {
                 write!(f, "Environment variable {} must be set", var)
+            }
+            ConfigError::InvalidConfig(msg) => {
+                write!(f, "Invalid configuration: {}", msg)
             }
         }
     }
@@ -44,7 +48,19 @@ impl Config {
             .unwrap_or_else(|_| "http://localhost:3000".to_string())
             .split(',')
             .map(|s| s.trim().to_string())
-            .collect();
+            .collect::<Vec<String>>();
+
+        // Security: Reject wildcard origins when credentials are enabled
+        // Browsers block credentials + wildcard, but we validate at startup to fail fast
+        for origin in &cors_origins {
+            if origin == "*" {
+                return Err(ConfigError::InvalidConfig(
+                    "Wildcard CORS origin (*) is not allowed when credentials are enabled. \
+                     Specify explicit origins instead."
+                        .to_string(),
+                ));
+            }
+        }
 
         let r2 = R2Config {
             account_id: env::var("R2_ACCOUNT_ID")
