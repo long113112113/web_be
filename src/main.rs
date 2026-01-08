@@ -54,10 +54,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize R2/S3 client
     let s3_client = get_r2_client(&config_arc.r2).await;
 
+    // Create rate limit config ONCE (per docs: do not create multiple times!)
+    // Allow bursts with up to 5 requests per IP and replenishes one every 60 seconds
+    let rate_limit_config = std::sync::Arc::new(
+        tower_governor::governor::GovernorConfigBuilder::default()
+            .key_extractor(tower_governor::key_extractor::SmartIpKeyExtractor)
+            .per_second(60)
+            .burst_size(5)
+            .finish()
+            .expect("Failed to build rate limit config"),
+    );
+
     let app_state = AppState {
         pool: pool.clone(),
         config: config_arc.clone(),
         s3_client,
+        rate_limit_config,
     };
 
     // Setup Axum router
@@ -79,7 +91,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Start server
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
     println!("Server running on http://localhost:3000");
-    axum::serve(listener, app).await?;
+    // Use into_make_service_with_connect_info for rate limiting IP extraction (per tower-governor docs)
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .await?;
 
     Ok(())
 }

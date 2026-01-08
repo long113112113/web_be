@@ -16,6 +16,62 @@ use crate::{
     utils::{image::strip_metadata, jwt::Claims},
 };
 
+/// Helper function to process and upload avatar image
+/// Validates file type/size, strips metadata, uploads to R2, and returns the URL
+async fn process_and_upload_avatar(
+    state: &AppState,
+    user_id: Uuid,
+    file_bytes: Vec<u8>,
+    content_type: &str,
+) -> Result<String, AppError> {
+    // Validate file type
+    if !ALLOWED_CONTENT_TYPES.contains(&content_type) {
+        return Err(AppError::BadRequest(
+            "Invalid file type. Allowed: JPEG, PNG, GIF, WebP".to_string(),
+        ));
+    }
+
+    // Validate file size
+    if file_bytes.len() > MAX_AVATAR_SIZE {
+        return Err(AppError::BadRequest(
+            "File too large. Maximum size is 5MB".to_string(),
+        ));
+    }
+
+    // Strip EXIF/metadata from image for privacy
+    // Use spawn_blocking because image processing is CPU-intensive
+    let ct = content_type.to_string();
+    let cleaned_bytes =
+        match tokio::task::spawn_blocking(move || strip_metadata(&file_bytes, &ct)).await {
+            Ok(Ok(bytes)) => bytes,
+            Ok(Err(e)) => {
+                tracing::error!("Failed to strip metadata: {:?}", e);
+                return Err(AppError::BadRequest("Failed to process image".to_string()));
+            }
+            Err(e) => {
+                tracing::error!("Task join error: {:?}", e);
+                return Err(AppError::InternalError("Internal error".to_string()));
+            }
+        };
+
+    // Upload to R2
+    let avatar_url = profile_service::upload_avatar(
+        &state.s3_client,
+        &state.config.r2.bucket_name,
+        &state.config.r2.public_url,
+        user_id,
+        cleaned_bytes,
+        content_type,
+    )
+    .await
+    .map_err(|e| {
+        tracing::error!("Avatar upload failed: {:?}", e);
+        AppError::InternalError("Failed to upload avatar".to_string())
+    })?;
+
+    Ok(avatar_url)
+}
+
 #[derive(Serialize)]
 pub struct AvatarResponse {
     pub avatar_url: String,
@@ -52,51 +108,12 @@ pub async fn upload_avatar_handler(
         "Content type not specified".to_string(),
     ))?;
 
-    if !ALLOWED_CONTENT_TYPES.contains(&content_type.as_str()) {
-        return Err(AppError::BadRequest(
-            "Invalid file type. Allowed: JPEG, PNG, GIF, WebP".to_string(),
-        ));
-    }
-
-    if file_bytes.len() > MAX_AVATAR_SIZE {
-        return Err(AppError::BadRequest(
-            "File too large. Maximum size is 5MB".to_string(),
-        ));
-    }
-
     profile_repository::ensure_profile_exists(&state.pool, user_id)
         .await
         .map_err(|_| AppError::InternalError("Failed to ensure profile".to_string()))?;
 
-    // Strip EXIF/metadata from image for privacy
-    // Use spawn_blocking because image processing is CPU-intensive
-    let ct = content_type.clone();
-    let cleaned_bytes =
-        match tokio::task::spawn_blocking(move || strip_metadata(&file_bytes, &ct)).await {
-            Ok(Ok(bytes)) => bytes,
-            Ok(Err(e)) => {
-                tracing::error!("Failed to strip metadata: {:?}", e);
-                return Err(AppError::BadRequest("Failed to process image".to_string()));
-            }
-            Err(e) => {
-                tracing::error!("Task join error: {:?}", e);
-                return Err(AppError::InternalError("Internal error".to_string()));
-            }
-        };
-
-    let avatar_url = profile_service::upload_avatar(
-        &state.s3_client,
-        &state.config.r2.bucket_name,
-        &state.config.r2.public_url,
-        user_id,
-        cleaned_bytes,
-        &content_type,
-    )
-    .await
-    .map_err(|e| {
-        tracing::error!("Avatar upload failed: {:?}", e);
-        AppError::InternalError("Failed to upload avatar".to_string())
-    })?;
+    // Process and upload avatar using helper function
+    let avatar_url = process_and_upload_avatar(&state, user_id, file_bytes, &content_type).await?;
 
     profile_repository::update_avatar_url(&state.pool, user_id, &avatar_url)
         .await
@@ -212,50 +229,8 @@ pub async fn edit_profile_handler(
 
     // Handle avatar upload if provided
     if let (Some(bytes), Some(content_type)) = (avatar_bytes, avatar_content_type) {
-        // Validate file type
-        if !ALLOWED_CONTENT_TYPES.contains(&content_type.as_str()) {
-            return Err(AppError::BadRequest(
-                "Invalid file type. Allowed: JPEG, PNG, GIF, WebP".to_string(),
-            ));
-        }
-
-        // Validate file size
-        if bytes.len() > MAX_AVATAR_SIZE {
-            return Err(AppError::BadRequest(
-                "File too large. Maximum size is 5MB".to_string(),
-            ));
-        }
-
-        // Strip metadata
-        let ct = content_type.clone();
-        let cleaned_bytes =
-            match tokio::task::spawn_blocking(move || strip_metadata(&bytes, &ct)).await {
-                Ok(Ok(bytes)) => bytes,
-                Ok(Err(e)) => {
-                    tracing::error!("Failed to strip metadata: {:?}", e);
-                    return Err(AppError::BadRequest("Failed to process image".to_string()));
-                }
-                Err(e) => {
-                    tracing::error!("Task join error: {:?}", e);
-                    return Err(AppError::InternalError("Internal error".to_string()));
-                }
-            };
-
-        // Upload to R2
-        let url = profile_service::upload_avatar(
-            &state.s3_client,
-            &state.config.r2.bucket_name,
-            &state.config.r2.public_url,
-            user_id,
-            cleaned_bytes,
-            &content_type,
-        )
-        .await
-        .map_err(|e| {
-            tracing::error!("Avatar upload failed: {:?}", e);
-            AppError::InternalError("Failed to upload avatar".to_string())
-        })?;
-
+        // Process and upload avatar using helper function
+        let url = process_and_upload_avatar(&state, user_id, bytes, &content_type).await?;
         avatar_url = Some(url);
     }
 
