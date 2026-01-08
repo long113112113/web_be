@@ -1,4 +1,5 @@
 use crate::{
+    constant::auth::ACCESS_TOKEN_COOKIE_NAME,
     state::AppState,
     utils::jwt::{TokenType, decode_jwt_with_type},
 };
@@ -16,7 +17,7 @@ pub async fn auth_middleware(
     mut req: Request,
     next: Next,
 ) -> Result<impl IntoResponse, impl IntoResponse> {
-    let access_token = match jar.get("access_token") {
+    let access_token = match jar.get(ACCESS_TOKEN_COOKIE_NAME) {
         Some(cookie) => cookie.value(),
         None => {
             return Err((StatusCode::UNAUTHORIZED, "Missing access token").into_response());

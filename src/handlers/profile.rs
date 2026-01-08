@@ -8,15 +8,13 @@ use serde::Serialize;
 use uuid::Uuid;
 
 use crate::{
+    constant::image::{ALLOWED_CONTENT_TYPES, MAX_AVATAR_SIZE},
     error::AppError,
     repository::profile_repository,
     services::profile_service,
     state::AppState,
     utils::{image::strip_metadata, jwt::Claims},
 };
-
-const MAX_AVATAR_SIZE: usize = 5 * 1024 * 1024; // 5MB
-const ALLOWED_CONTENT_TYPES: [&str; 4] = ["image/jpeg", "image/png", "image/gif", "image/webp"];
 
 #[derive(Serialize)]
 pub struct AvatarResponse {
@@ -105,4 +103,37 @@ pub async fn upload_avatar_handler(
         .map_err(|_| AppError::InternalError("Failed to update profile".to_string()))?;
 
     Ok((StatusCode::OK, Json(AvatarResponse { avatar_url })))
+}
+
+use crate::{dtos::private::user::UserMeResponse, repository::user_repository};
+use std::str::FromStr;
+
+pub async fn me_handler(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<impl IntoResponse, AppError> {
+    let user_id = Uuid::from_str(&claims.sub)
+        .map_err(|_| AppError::BadRequest("Invalid user ID".to_string()))?;
+
+    let user = user_repository::find_user_by_id(&state.pool, user_id)
+        .await
+        .map_err(|e| AppError::InternalError(e.to_string()))?
+        .ok_or_else(|| AppError::BadRequest("User not found".to_string()))?;
+
+    let profile = profile_repository::ensure_profile_exists(&state.pool, user_id)
+        .await
+        .map_err(|e| AppError::InternalError(e.to_string()))?;
+
+    let response = UserMeResponse {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        full_name: profile.full_name,
+        bio: profile.bio,
+        avatar_url: profile.avatar_url,
+        created_at: profile.created_at,
+        updated_at: profile.updated_at,
+    };
+
+    Ok(Json(response))
 }

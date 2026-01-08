@@ -1,4 +1,5 @@
 use crate::{
+    constant::auth::REFRESH_TOKEN_COOKIE_NAME,
     dtos::private::auth::{
         request::{LoginRequest, RegisterRequest},
         response::AuthResponse,
@@ -98,7 +99,7 @@ pub async fn refresh_token_handler(
     State(state): State<AppState>,
     jar: CookieJar,
 ) -> impl IntoResponse {
-    let refresh_token = match jar.get("refresh_token") {
+    let refresh_token = match jar.get(REFRESH_TOKEN_COOKIE_NAME) {
         Some(cookie) => cookie.value(),
         None => return (StatusCode::UNAUTHORIZED, "Refresh token not found").into_response(),
     };
@@ -120,7 +121,7 @@ pub async fn refresh_token_handler(
 
 pub async fn logout_handler(State(state): State<AppState>, jar: CookieJar) -> impl IntoResponse {
     // Invalidate refresh token in database if present
-    if let Some(refresh_cookie) = jar.get("refresh_token") {
+    if let Some(refresh_cookie) = jar.get(REFRESH_TOKEN_COOKIE_NAME) {
         let _ = auth_service::invalidate_refresh_token(&state.pool, refresh_cookie.value()).await;
     }
 

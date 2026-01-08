@@ -1,4 +1,6 @@
-use crate::constant::auth::REFRESH_TOKEN_DURATION_DAYS;
+use crate::constant::auth::{
+    ACCESS_TOKEN_COOKIE_NAME, REFRESH_TOKEN_COOKIE_NAME, REFRESH_TOKEN_DURATION_DAYS,
+};
 use axum_extra::extract::cookie::{Cookie, SameSite};
 
 pub fn create_auth_cookies(
@@ -10,7 +12,7 @@ pub fn create_auth_cookies(
 
     // Access Token Cookie
     // Expires in 1 hour (same as JWT)
-    let access_cookie = Cookie::build(("access_token", access_token))
+    let access_cookie = Cookie::build((ACCESS_TOKEN_COOKIE_NAME, access_token))
         .http_only(true)
         .secure(true) // Set to false if not running on HTTPS locally, but true is recommended
         .same_site(SameSite::Strict)
@@ -19,7 +21,7 @@ pub fn create_auth_cookies(
     cookies.push(access_cookie);
 
     // Refresh Token Cookie
-    let mut refresh_cookie_builder = Cookie::build(("refresh_token", refresh_token))
+    let mut refresh_cookie_builder = Cookie::build((REFRESH_TOKEN_COOKIE_NAME, refresh_token))
         .http_only(true)
         .secure(true)
         .same_site(SameSite::Strict)
@@ -41,7 +43,7 @@ pub fn create_auth_cookies(
 pub fn remove_auth_cookies() -> Vec<Cookie<'static>> {
     let mut cookies = Vec::new();
 
-    let access_cookie = Cookie::build(("access_token", ""))
+    let access_cookie = Cookie::build((ACCESS_TOKEN_COOKIE_NAME, ""))
         .http_only(true)
         .secure(true)
         .same_site(SameSite::Strict)
@@ -50,7 +52,7 @@ pub fn remove_auth_cookies() -> Vec<Cookie<'static>> {
         .build();
     cookies.push(access_cookie);
 
-    let refresh_cookie = Cookie::build(("refresh_token", ""))
+    let refresh_cookie = Cookie::build((REFRESH_TOKEN_COOKIE_NAME, ""))
         .http_only(true)
         .secure(true)
         .same_site(SameSite::Strict)

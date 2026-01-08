@@ -1,5 +1,4 @@
-use crate::handlers::profile::upload_avatar_handler;
-use crate::handlers::protected::me_handler;
+use crate::handlers::profile::{me_handler, upload_avatar_handler};
 use crate::state::AppState;
 use axum::{
     Router,
