@@ -2,3 +2,5 @@
 .env
 /migrations
 .agent/workflows/design.md
+checkList/PROMPT_Performance_Review.md
+checkList/PROMPT_Security_Review.md
