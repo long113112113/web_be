@@ -42,6 +42,25 @@ pub fn validate_password_strength(password: &str) -> Result<(), ValidationError>
         "Password must contain at least one uppercase letter, one lowercase letter, one digit, and one special character".into(),
     ))
 }
+
+/// Validates that a full name doesn't contain numbers and doesn't exceed 255 characters
+pub fn validate_full_name(name: &str) -> Result<(), String> {
+    if name.len() > 255 {
+        return Err("Full name must not exceed 255 characters".to_string());
+    }
+    if name.chars().any(|c| c.is_numeric()) {
+        return Err("Full name must not contain numbers".to_string());
+    }
+    Ok(())
+}
+
+/// Validates that a bio doesn't exceed 255 characters
+pub fn validate_bio(bio: &str) -> Result<(), String> {
+    if bio.len() > 255 {
+        return Err("Bio must not exceed 255 characters".to_string());
+    }
+    Ok(())
+}
 #[cfg(test)]
 mod tests {
     use super::*;

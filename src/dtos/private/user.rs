@@ -13,3 +13,11 @@ pub struct UserMeResponse {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
+
+#[derive(Debug, Serialize)]
+pub struct UpdateProfileResponse {
+    pub full_name: Option<String>,
+    pub bio: Option<String>,
+    pub avatar_url: Option<String>,
+    pub updated_at: DateTime<Utc>,
+}

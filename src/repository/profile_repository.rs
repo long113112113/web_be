@@ -46,3 +46,47 @@ pub async fn ensure_profile_exists(
         None => create_profile(pool, user_id).await,
     }
 }
+
+/// Updates profile fields dynamically based on what's provided
+pub async fn update_profile(
+    pool: &PgPool,
+    user_id: Uuid,
+    full_name: Option<&str>,
+    bio: Option<&str>,
+    avatar_url: Option<&str>,
+) -> Result<ProfileModel, sqlx::Error> {
+    let mut query = String::from("UPDATE profiles SET ");
+    let mut updates = Vec::new();
+    let mut param_count = 1;
+
+    if full_name.is_some() {
+        updates.push(format!("full_name = ${}", param_count));
+        param_count += 1;
+    }
+    if bio.is_some() {
+        updates.push(format!("bio = ${}", param_count));
+        param_count += 1;
+    }
+    if avatar_url.is_some() {
+        updates.push(format!("avatar_url = ${}", param_count));
+        param_count += 1;
+    }
+
+    query.push_str(&updates.join(", "));
+    query.push_str(&format!(" WHERE user_id = ${} RETURNING id, user_id, full_name, bio, avatar_url, created_at, updated_at", param_count));
+
+    let mut q = sqlx::query_as::<_, ProfileModel>(&query);
+
+    if let Some(name) = full_name {
+        q = q.bind(name);
+    }
+    if let Some(b) = bio {
+        q = q.bind(b);
+    }
+    if let Some(url) = avatar_url {
+        q = q.bind(url);
+    }
+    q = q.bind(user_id);
+
+    q.fetch_one(pool).await
+}

@@ -29,7 +29,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
     sqlx::migrate!().run(&pool).await?;
 
-    println!("Migrations executed successfully!");
+    // Warm up database connections
+    let _ = sqlx::query("SELECT 1").fetch_one(&pool).await?;
 
     // Setup CORS
     let allowed_origins = config_arc
