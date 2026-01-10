@@ -65,15 +65,50 @@ pub async fn delete_friend_handler(
 pub async fn get_friends_handler(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    axum::extract::Query(params): axum::extract::Query<crate::dtos::friend::GetFriendsQuery>,
 ) -> Result<impl IntoResponse, AppError> {
     let user_id =
         Uuid::from_str(&claims.sub).map_err(|_| AppError::Unauthorized("Invalid token".into()))?;
 
-    let friends = friend_repository::get_friends(&state.pool, user_id)
+    // Decode cursor if provided
+    let cursor = if let Some(cursor_str) = params.cursor {
+        Some(crate::utils::cursor::decode_cursor(&cursor_str)?)
+    } else {
+        None
+    };
+
+    // Default limit to 20, max 100
+    let limit = params.limit.unwrap_or(20).min(100);
+
+    // Fetch limit + 1 to check if there are more results
+    let friends = friend_repository::get_friends(&state.pool, user_id, cursor, limit + 1)
         .await
         .map_err(|e| AppError::InternalError(e.to_string().into()))?;
 
-    let response: Vec<FriendResponseDto> = friends.into_iter().map(map_to_dto).collect();
+    // Check if there are more results
+    let has_more = friends.len() > limit as usize;
+    let data: Vec<FriendResponseDto> = friends
+        .into_iter()
+        .take(limit as usize)
+        .map(map_to_dto)
+        .collect();
+
+    // Generate next cursor if there are more results
+    let next_cursor = if has_more && !data.is_empty() {
+        let last = data.last().unwrap();
+        Some(crate::utils::cursor::encode_cursor(
+            last.full_name.as_deref().unwrap_or(""),
+            last.user_id,
+        ))
+    } else {
+        None
+    };
+
+    let response = crate::dtos::friend::PaginatedFriendsResponse {
+        data,
+        next_cursor,
+        has_more,
+    };
 
     Ok(Json(response))
 }

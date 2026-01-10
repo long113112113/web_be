@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use uuid::Uuid;
 
@@ -10,4 +10,17 @@ pub struct FriendResponseDto {
     pub avatar_url: Option<String>,
     pub status: String, // 'friend', 'pending_sent', 'pending_received'
     pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GetFriendsQuery {
+    pub cursor: Option<String>,
+    pub limit: Option<i32>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PaginatedFriendsResponse {
+    pub data: Vec<FriendResponseDto>,
+    pub next_cursor: Option<String>,
+    pub has_more: bool,
 }

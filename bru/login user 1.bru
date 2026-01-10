@@ -1,0 +1,35 @@
+meta {
+  name: login user 1
+  type: http
+  seq: 2
+}
+
+post {
+  url: http://localhost:3000/api/auth/login
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "email": "user@example.com",
+    "password": "Admin@123",
+    "remember_me": true
+  }
+}
+
+script:post-response {
+  const cookieValue = res.getHeader('set-cookie');
+  if (cookieValue) {
+    const accessTokenCookie = cookieValue.find(c => c.startsWith('access_token='));
+    if (accessTokenCookie) {
+      const token = accessTokenCookie.split(';')[0].split('=')[1];
+      bru.setEnvVar('access_token', token);
+    }
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

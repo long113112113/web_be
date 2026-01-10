@@ -74,8 +74,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Setup Axum router
     let app = Router::new()
-        .nest("/api", public_routes(app_state.clone()))
-        .nest("/api", private_routes(app_state.clone()))
+        .nest(
+            "/api",
+            public_routes(app_state.clone()).merge(private_routes(app_state.clone())),
+        )
         .layer(cors)
         //TODO: Remove logging layer in production
         .layer(TraceLayer::new_for_http());

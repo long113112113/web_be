@@ -69,22 +69,50 @@ pub struct FriendWithProfile {
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
-pub async fn get_friends(pool: &PgPool, user_id: Uuid) -> Result<Vec<FriendWithProfile>, Error> {
-    sqlx::query_as::<_, FriendWithProfile>(
-        r#"
-        SELECT 
-            p.user_id, p.full_name, p.avatar_url, f.status, f.created_at
-        FROM friendships f
-        JOIN profiles p ON (f.user_id = p.user_id OR f.friend_id = p.user_id)
-        WHERE (f.user_id = $1 OR f.friend_id = $1)
-          AND f.status = 'accepted'
-          AND p.user_id != $1
-        ORDER BY p.full_name ASC
-        "#,
-    )
-    .bind(user_id)
-    .fetch_all(pool)
-    .await
+pub async fn get_friends(
+    pool: &PgPool,
+    user_id: Uuid,
+    cursor: Option<(String, Uuid)>,
+    limit: i32,
+) -> Result<Vec<FriendWithProfile>, Error> {
+    let query = if let Some((last_name, last_id)) = cursor {
+        sqlx::query_as::<_, FriendWithProfile>(
+            r#"
+            SELECT 
+                p.user_id, p.full_name, p.avatar_url, f.status, f.created_at
+            FROM friendships f
+            JOIN profiles p ON (f.user_id = p.user_id OR f.friend_id = p.user_id)
+            WHERE (f.user_id = $1 OR f.friend_id = $1)
+              AND f.status = 'accepted'
+              AND p.user_id != $1
+              AND (COALESCE(p.full_name, ''), p.user_id) > ($2, $3)
+            ORDER BY COALESCE(p.full_name, '') ASC, p.user_id ASC
+            LIMIT $4
+            "#,
+        )
+        .bind(user_id)
+        .bind(last_name)
+        .bind(last_id)
+        .bind(limit)
+    } else {
+        sqlx::query_as::<_, FriendWithProfile>(
+            r#"
+            SELECT 
+                p.user_id, p.full_name, p.avatar_url, f.status, f.created_at
+            FROM friendships f
+            JOIN profiles p ON (f.user_id = p.user_id OR f.friend_id = p.user_id)
+            WHERE (f.user_id = $1 OR f.friend_id = $1)
+              AND f.status = 'accepted'
+              AND p.user_id != $1
+            ORDER BY COALESCE(p.full_name, '') ASC, p.user_id ASC
+            LIMIT $2
+            "#,
+        )
+        .bind(user_id)
+        .bind(limit)
+    };
+
+    query.fetch_all(pool).await
 }
 
 pub async fn get_pending_requests(

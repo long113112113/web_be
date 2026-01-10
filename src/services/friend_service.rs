@@ -16,7 +16,11 @@ pub async fn request_friend(
         .await
         .map_err(|e| AppError::InternalError(e.to_string().into()))?;
 
-    if let Some(_) = existing {
+    if let Some(existing) = existing {
+        if existing.status == "pending" && existing.friend_id == user_id {
+            return accept_friend(pool, user_id, target_id).await;
+        }
+
         return Err(AppError::BadRequest(
             "Friendship or request already exists".into(),
         ));
@@ -32,10 +36,6 @@ pub async fn accept_friend(
     user_id: Uuid,
     target_id: Uuid,
 ) -> Result<FriendshipModel, AppError> {
-    // We need to find the specific request where user_id is the *recipient* (friend_id in DB)
-    // and target_id is the *sender* (user_id in DB).
-    // Or we find the friendship record and verify.
-
     let existing = friend_repository::find_friendship(pool, user_id, target_id)
         .await
         .map_err(|e| AppError::InternalError(e.to_string().into()))?
@@ -47,9 +47,7 @@ pub async fn accept_friend(
 
     // Determine if user_id is the recipient
     if existing.friend_id != user_id {
-        return Err(AppError::BadRequest(
-            "You can only accept requests sent to you".into(),
-        ));
+        return Err(AppError::BadRequest("Friend request not found".into()));
     }
 
     friend_repository::accept_request(pool, existing.id)
