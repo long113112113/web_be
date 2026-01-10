@@ -1,5 +1,6 @@
 use axum::{Json, http::StatusCode, response::IntoResponse};
 use serde::Serialize;
+use std::borrow::Cow;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -73,22 +74,24 @@ impl IntoResponse for AuthError {
     }
 }
 
+/// AppError using Cow to avoid unnecessary string allocations
+/// Static error messages use &'static str (no allocation), dynamic ones use String
 #[derive(Debug, Error)]
 pub enum AppError {
     #[error("Internal error: {0}")]
-    InternalError(String),
+    InternalError(Cow<'static, str>),
     #[error("Bad request: {0}")]
-    BadRequest(String),
+    BadRequest(Cow<'static, str>),
     #[error("Unauthorized: {0}")]
-    Unauthorized(String),
+    Unauthorized(Cow<'static, str>),
 }
 
 impl IntoResponse for AppError {
     fn into_response(self) -> axum::response::Response {
-        let (status, message) = match &self {
-            AppError::InternalError(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.clone()),
-            AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
-            AppError::Unauthorized(msg) => (StatusCode::UNAUTHORIZED, msg.clone()),
+        let (status, message) = match self {
+            AppError::InternalError(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.into_owned()),
+            AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.into_owned()),
+            AppError::Unauthorized(msg) => (StatusCode::UNAUTHORIZED, msg.into_owned()),
         };
         (status, Json(ErrorResponse { error: message })).into_response()
     }

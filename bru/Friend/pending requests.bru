@@ -1,0 +1,11 @@
+meta {
+  name: get pending requests
+  type: http
+  seq: 2
+}
+
+get {
+  url: http://localhost:3000/api/friends/pending
+  body: none
+  auth: inherit
+}

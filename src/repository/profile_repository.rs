@@ -37,17 +37,27 @@ pub async fn update_avatar_url(
 }
 
 /// Ensures a profile exists for the user, creating one if needed
+/// Uses INSERT ON CONFLICT for atomic operation (prevents race conditions)
 pub async fn ensure_profile_exists(
     pool: &PgPool,
     user_id: Uuid,
 ) -> Result<ProfileModel, sqlx::Error> {
-    match find_by_user_id(pool, user_id).await? {
-        Some(profile) => Ok(profile),
-        None => create_profile(pool, user_id).await,
-    }
+    sqlx::query_as::<_, ProfileModel>(
+        r#"
+        INSERT INTO profiles (user_id) 
+        VALUES ($1)
+        ON CONFLICT (user_id) DO UPDATE 
+        SET user_id = EXCLUDED.user_id
+        RETURNING id, user_id, full_name, bio, avatar_url, created_at, updated_at
+        "#,
+    )
+    .bind(user_id)
+    .fetch_one(pool)
+    .await
 }
 
 /// Updates profile fields dynamically based on what's provided
+/// Uses QueryBuilder for efficient and maintainable query construction
 pub async fn update_profile(
     pool: &PgPool,
     user_id: Uuid,
@@ -55,38 +65,28 @@ pub async fn update_profile(
     bio: Option<&str>,
     avatar_url: Option<&str>,
 ) -> Result<ProfileModel, sqlx::Error> {
-    let mut query = String::from("UPDATE profiles SET ");
-    let mut updates = Vec::new();
-    let mut param_count = 1;
-
-    if full_name.is_some() {
-        updates.push(format!("full_name = ${}", param_count));
-        param_count += 1;
-    }
-    if bio.is_some() {
-        updates.push(format!("bio = ${}", param_count));
-        param_count += 1;
-    }
-    if avatar_url.is_some() {
-        updates.push(format!("avatar_url = ${}", param_count));
-        param_count += 1;
-    }
-
-    query.push_str(&updates.join(", "));
-    query.push_str(&format!(" WHERE user_id = ${} RETURNING id, user_id, full_name, bio, avatar_url, created_at, updated_at", param_count));
-
-    let mut q = sqlx::query_as::<_, ProfileModel>(&query);
+    let mut builder = sqlx::QueryBuilder::new("UPDATE profiles SET ");
+    let mut separated = builder.separated(", ");
 
     if let Some(name) = full_name {
-        q = q.bind(name);
+        separated.push("full_name = ");
+        separated.push_bind_unseparated(name);
     }
     if let Some(b) = bio {
-        q = q.bind(b);
+        separated.push("bio = ");
+        separated.push_bind_unseparated(b);
     }
     if let Some(url) = avatar_url {
-        q = q.bind(url);
+        separated.push("avatar_url = ");
+        separated.push_bind_unseparated(url);
     }
-    q = q.bind(user_id);
 
-    q.fetch_one(pool).await
+    builder.push(" WHERE user_id = ");
+    builder.push_bind(user_id);
+    builder.push(" RETURNING id, user_id, full_name, bio, avatar_url, created_at, updated_at");
+
+    builder
+        .build_query_as::<ProfileModel>()
+        .fetch_one(pool)
+        .await
 }

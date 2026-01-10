@@ -22,3 +22,14 @@ settings {
   encodeUrl: true
   timeout: 0
 }
+
+script:post-response {
+  const cookieValue = res.getHeader('set-cookie');
+  if (cookieValue) {
+    const accessTokenCookie = cookieValue.find(c => c.startsWith('access_token='));
+    if (accessTokenCookie) {
+      const token = accessTokenCookie.split(';')[0].split('=')[1];
+      bru.setEnvVar('access_token', token);
+    }
+  }
+}

@@ -34,7 +34,7 @@ pub async fn upload_avatar(
         .content_type(content_type)
         .send()
         .await
-        .map_err(|e| AppError::InternalError(format!("Failed to upload avatar: {}", e)))?;
+        .map_err(|e| AppError::InternalError(format!("Failed to upload avatar: {}", e).into()))?;
 
     // Return public URL
     let avatar_url = format!("{}/{}", public_url.trim_end_matches('/'), key);

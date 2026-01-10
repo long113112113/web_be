@@ -1,7 +1,7 @@
 use axum::{Router, http::Method};
 use sqlx::postgres::PgPoolOptions;
 use std::{sync::Arc, time::Duration};
-use tower_http::cors::CorsLayer;
+use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use web_be::{
     config::Config,
     routes::{private_routes, public_routes},
@@ -55,11 +55,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let s3_client = get_r2_client(&config_arc.r2).await;
 
     // Create rate limit config ONCE (per docs: do not create multiple times!)
-    // Allow bursts with up to 5 requests per IP and replenishes one every 60 seconds
+    // Allow bursts with up to 5 requests per IP and replenishes at 1 request per second
     let rate_limit_config = std::sync::Arc::new(
         tower_governor::governor::GovernorConfigBuilder::default()
             .key_extractor(tower_governor::key_extractor::SmartIpKeyExtractor)
-            .per_second(60)
+            .per_second(1)
             .burst_size(5)
             .finish()
             .expect("Failed to build rate limit config"),
@@ -76,7 +76,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = Router::new()
         .nest("/api", public_routes(app_state.clone()))
         .nest("/api", private_routes(app_state.clone()))
-        .layer(cors);
+        .layer(cors)
+        //TODO: Remove logging layer in production
+        .layer(TraceLayer::new_for_http());
 
     // Initialize and start scheduler
     let sched = web_be::services::scheduler::init_scheduler(pool)

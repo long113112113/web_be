@@ -27,14 +27,14 @@ async fn process_and_upload_avatar(
     // Validate file type
     if !ALLOWED_CONTENT_TYPES.contains(&content_type) {
         return Err(AppError::BadRequest(
-            "Invalid file type. Allowed: JPEG, PNG, GIF, WebP".to_string(),
+            "Invalid file type. Allowed: JPEG, PNG, GIF, WebP".into(),
         ));
     }
 
     // Validate file size
     if file_bytes.len() > MAX_AVATAR_SIZE {
         return Err(AppError::BadRequest(
-            "File too large. Maximum size is 5MB".to_string(),
+            "File too large. Maximum size is 5MB".into(),
         ));
     }
 
@@ -46,11 +46,11 @@ async fn process_and_upload_avatar(
             Ok(Ok(bytes)) => bytes,
             Ok(Err(e)) => {
                 tracing::error!("Failed to strip metadata: {:?}", e);
-                return Err(AppError::BadRequest("Failed to process image".to_string()));
+                return Err(AppError::BadRequest("Failed to process image".into()));
             }
             Err(e) => {
                 tracing::error!("Task join error: {:?}", e);
-                return Err(AppError::InternalError("Internal error".to_string()));
+                return Err(AppError::InternalError("Internal error".into()));
             }
         };
 
@@ -66,7 +66,7 @@ async fn process_and_upload_avatar(
     .await
     .map_err(|e| {
         tracing::error!("Avatar upload failed: {:?}", e);
-        AppError::InternalError("Failed to upload avatar".to_string())
+        AppError::InternalError("Failed to upload avatar".into())
     })?;
 
     Ok(avatar_url)
@@ -83,7 +83,7 @@ pub async fn upload_avatar_handler(
     mut multipart: Multipart,
 ) -> Result<impl IntoResponse, AppError> {
     let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::Unauthorized("Invalid user ID".to_string()))?;
+        .map_err(|_| AppError::Unauthorized("Invalid user ID".into()))?;
 
     let mut file_bytes: Option<Vec<u8>> = None;
     let mut content_type: Option<String> = None;
@@ -95,29 +95,27 @@ pub async fn upload_avatar_handler(
                 field
                     .bytes()
                     .await
-                    .map_err(|_| AppError::BadRequest("Failed to read file".to_string()))?
+                    .map_err(|_| AppError::BadRequest("Failed to read file".into()))?
                     .to_vec(),
             );
             break;
         }
     }
 
-    let file_bytes =
-        file_bytes.ok_or(AppError::BadRequest("No avatar file provided".to_string()))?;
-    let content_type = content_type.ok_or(AppError::BadRequest(
-        "Content type not specified".to_string(),
-    ))?;
+    let file_bytes = file_bytes.ok_or(AppError::BadRequest("No avatar file provided".into()))?;
+    let content_type =
+        content_type.ok_or(AppError::BadRequest("Content type not specified".into()))?;
 
     profile_repository::ensure_profile_exists(&state.pool, user_id)
         .await
-        .map_err(|_| AppError::InternalError("Failed to ensure profile".to_string()))?;
+        .map_err(|_| AppError::InternalError("Failed to ensure profile".into()))?;
 
     // Process and upload avatar using helper function
     let avatar_url = process_and_upload_avatar(&state, user_id, file_bytes, &content_type).await?;
 
     profile_repository::update_avatar_url(&state.pool, user_id, &avatar_url)
         .await
-        .map_err(|_| AppError::InternalError("Failed to update profile".to_string()))?;
+        .map_err(|_| AppError::InternalError("Failed to update profile".into()))?;
 
     Ok((StatusCode::OK, Json(AvatarResponse { avatar_url })))
 }
@@ -129,17 +127,22 @@ pub async fn me_handler(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<impl IntoResponse, AppError> {
-    let user_id = Uuid::from_str(&claims.sub)
-        .map_err(|_| AppError::BadRequest("Invalid user ID".to_string()))?;
+    let user_id =
+        Uuid::from_str(&claims.sub).map_err(|_| AppError::BadRequest("Invalid user ID".into()))?;
 
-    let user = user_repository::find_user_by_id(&state.pool, user_id)
+    // Fetch user and profile in a single query (optimized, fixes N+1 query issue)
+    let (user, profile_opt) = user_repository::find_user_with_profile(&state.pool, user_id)
         .await
-        .map_err(|e| AppError::InternalError(e.to_string()))?
-        .ok_or_else(|| AppError::BadRequest("User not found".to_string()))?;
+        .map_err(|e| AppError::InternalError(e.to_string().into()))?
+        .ok_or_else(|| AppError::BadRequest("User not found".into()))?;
 
-    let profile = profile_repository::ensure_profile_exists(&state.pool, user_id)
-        .await
-        .map_err(|e| AppError::InternalError(e.to_string()))?;
+    // If profile doesn't exist, create it (rare case for new users)
+    let profile = match profile_opt {
+        Some(p) => p,
+        None => profile_repository::ensure_profile_exists(&state.pool, user_id)
+            .await
+            .map_err(|e| AppError::InternalError(e.to_string().into()))?,
+    };
 
     let response = UserMeResponse {
         id: user.id,
@@ -166,7 +169,7 @@ pub async fn edit_profile_handler(
     mut multipart: Multipart,
 ) -> Result<impl IntoResponse, AppError> {
     let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::Unauthorized("Invalid user ID".to_string()))?;
+        .map_err(|_| AppError::Unauthorized("Invalid user ID".into()))?;
 
     let mut full_name: Option<String> = None;
     let mut bio: Option<String> = None;
@@ -182,12 +185,12 @@ pub async fn edit_profile_handler(
                 let text = field
                     .text()
                     .await
-                    .map_err(|_| AppError::BadRequest("Failed to read full_name".to_string()))?;
+                    .map_err(|_| AppError::BadRequest("Failed to read full_name".into()))?;
 
                 // Only set if non-empty
                 if !text.is_empty() {
                     // Validate full_name
-                    validate_full_name(&text).map_err(|e| AppError::BadRequest(e))?;
+                    validate_full_name(&text).map_err(|e| AppError::BadRequest(e.into()))?;
                     full_name = Some(text);
                 }
             }
@@ -195,12 +198,12 @@ pub async fn edit_profile_handler(
                 let text = field
                     .text()
                     .await
-                    .map_err(|_| AppError::BadRequest("Failed to read bio".to_string()))?;
+                    .map_err(|_| AppError::BadRequest("Failed to read bio".into()))?;
 
                 // Only set if non-empty
                 if !text.is_empty() {
                     // Validate bio
-                    validate_bio(&text).map_err(|e| AppError::BadRequest(e))?;
+                    validate_bio(&text).map_err(|e| AppError::BadRequest(e.into()))?;
                     bio = Some(text);
                 }
             }
@@ -210,9 +213,7 @@ pub async fn edit_profile_handler(
                     field
                         .bytes()
                         .await
-                        .map_err(|_| {
-                            AppError::BadRequest("Failed to read avatar file".to_string())
-                        })?
+                        .map_err(|_| AppError::BadRequest("Failed to read avatar file".into()))?
                         .to_vec(),
                 );
             }
@@ -223,7 +224,7 @@ pub async fn edit_profile_handler(
     // Ensure profile exists
     profile_repository::ensure_profile_exists(&state.pool, user_id)
         .await
-        .map_err(|_| AppError::InternalError("Failed to ensure profile".to_string()))?;
+        .map_err(|_| AppError::InternalError("Failed to ensure profile".into()))?;
 
     let mut avatar_url: Option<String> = None;
 
@@ -245,7 +246,7 @@ pub async fn edit_profile_handler(
     .await
     .map_err(|e| {
         tracing::error!("Failed to update profile: {:?}", e);
-        AppError::InternalError("Failed to update profile".to_string())
+        AppError::InternalError("Failed to update profile".into())
     })?;
 
     let response = UpdateProfileResponse {
